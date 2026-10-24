@@ -4,23 +4,28 @@ import pandas as pd
 from config import WATCHLIST_PAIRS
 
 def fetch_klines(symbol, interval, limit=120):
-    url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
-    try:
-        r = requests.get(url, params=params, timeout=7)
-        data = r.json()
-        if not data or not isinstance(data, list):
-            return pd.DataFrame()
-        df = pd.DataFrame(data, columns=[
-            "open_time", "open", "high", "low", "close", "volume",
-            "close_time", "quote_volume", "trades", "taker_buy_base",
-            "taker_buy_quote", "ignore"
-        ])
-        for c in ["open", "high", "low", "close", "volume"]:
-            df[c] = df[c].astype(float)
-        return df[["open_time", "open", "high", "low", "close", "volume"]]
-    except Exception:
-        return pd.DataFrame()
+    endpoints = [
+        "https://data-api.binance.vision/api/v3/klines",
+        "https://api.binance.com/api/v3/klines",
+        "https://testnet.binance.vision/api/v3/klines"
+    ]
+    for url in endpoints:
+        params = {"symbol": symbol, "interval": interval, "limit": limit}
+        try:
+            r = requests.get(url, params=params, timeout=6)
+            data = r.json()
+            if data and isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
+                df = pd.DataFrame(data, columns=[
+                    "open_time", "open", "high", "low", "close", "volume",
+                    "close_time", "quote_volume", "trades", "taker_buy_base",
+                    "taker_buy_quote", "ignore"
+                ])
+                for c in ["open", "high", "low", "close", "volume"]:
+                    df[c] = df[c].astype(float)
+                return df[["open_time", "open", "high", "low", "close", "volume"]]
+        except Exception:
+            continue
+    return pd.DataFrame()
 
 def check_btc_shield():
     df = fetch_klines("BTCUSDT", "4h", limit=80)

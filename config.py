@@ -1,12 +1,12 @@
 import os
 
 # Binance Credentials (Testnet)
-BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY", "j2hNz3wJxP6ckSNEcxMM9vqvNfnGCMvhXlMS49sebbItasfa2Xj6UPzegddH3STB")
-BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET", "XkbbuU5HN4HeLvvS9JkdXt3WIJGRnAitz1pLVzsUleoU8hJko4NckGjuHL0eJjKR")
-BINANCE_BASE_URL = os.environ.get("BINANCE_BASE_URL", "https://testnet.binance.vision")
+BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY") or "j2hNz3wJxP6ckSNEcxMM9vqvNfnGCMvhXlMS49sebbItasfa2Xj6UPzegddH3STB"
+BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET") or "XkbbuU5HN4HeLvvS9JkdXt3WIJGRnAitz1pLVzsUleoU8hJko4NckGjuHL0eJjKR"
+BINANCE_BASE_URL = os.environ.get("BINANCE_BASE_URL") or "https://testnet.binance.vision"
 
 # Telegram Bot Credentials
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8810076939:AAHw6JgrPU6OwCvCS353KFKY3p9tzXFaPAI")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or "8810076939:AAHw6JgrPU6OwCvCS353KFKY3p9tzXFaPAI"
 BOT_USERNAME = "SRSupportResistance_Bot"
 
 # Paths
