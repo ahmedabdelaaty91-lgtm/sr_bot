@@ -1,0 +1,30 @@
+name: 24-7 Binance Cloud Bot
+
+on:
+  schedule:
+    # يعمل تلقائياً كل 6 ساعات في السحاب
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # زر التشغيل اليدوي المباشر
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # تشغيل مستمر لما يقارب 6 ساعات في كل دورة
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Cloud Trading Engine
+        run: |
+          python -u main.py
