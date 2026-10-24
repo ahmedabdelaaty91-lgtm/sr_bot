@@ -13,10 +13,20 @@ class BinanceClient:
         self.base_url = BINANCE_BASE_URL
         self.headers = {"X-MBX-APIKEY": self.api_key}
         self.symbols_info = {}
+        self.time_offset = self._get_time_offset()
         self._load_all_symbol_info()
 
+    def _get_time_offset(self):
+        try:
+            r = requests.get(f"{self.base_url}/api/v3/time", timeout=5).json()
+            server_time = r.get("serverTime", int(time.time() * 1000))
+            return server_time - int(time.time() * 1000)
+        except Exception:
+            return 0
+
     def _sign(self, params):
-        params["timestamp"] = int(time.time() * 1000)
+        params["recvWindow"] = 60000
+        params["timestamp"] = int(time.time() * 1000) + self.time_offset
         query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
         sig = hmac.new(self.api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
         return f"{query}&signature={sig}"
@@ -57,31 +67,32 @@ class BinanceClient:
         try:
             params = {}
             signed_query = self._sign(params)
-            r = requests.get(f"{self.base_url}/api/v3/account?{signed_query}", headers=self.headers, timeout=5)
+            r = requests.get(f"{self.base_url}/api/v3/account?{signed_query}", headers=self.headers, timeout=6)
             data = r.json()
-            for b in data.get("balances", []):
-                if b["asset"] == "USDT":
-                    return float(b["free"])
+            if "balances" in data:
+                for b in data.get("balances", []):
+                    if b["asset"] == "USDT":
+                        return float(b["free"])
+            else:
+                print(f"[Binance Account Response]: {data}")
             return 0.0
         except Exception as e:
             print(f"Error getting USDT balance: {e}")
             return 0.0
 
     def get_ticker_price(self, symbol):
-        # We can check Testnet, or public Binance live for accurate market pricing
-        try:
-            r = requests.get(f"https://api.binance.com/api/v3/ticker/price", params={"symbol": symbol}, timeout=5).json()
-            if "price" in r:
-                return float(r["price"])
-        except Exception:
-            pass
-        # Fallback to testnet
-        try:
-            r = requests.get(f"{self.base_url}/api/v3/ticker/price", params={"symbol": symbol}, timeout=5).json()
-            if "price" in r:
-                return float(r["price"])
-        except Exception as e:
-            print(f"Error getting price for {symbol}: {e}")
+        endpoints = [
+            "https://data-api.binance.vision/api/v3/ticker/price",
+            "https://api.binance.com/api/v3/ticker/price",
+            f"{self.base_url}/api/v3/ticker/price"
+        ]
+        for url in endpoints:
+            try:
+                r = requests.get(url, params={"symbol": symbol}, timeout=5).json()
+                if "price" in r:
+                    return float(r["price"])
+            except Exception:
+                continue
         return 0.0
 
     def round_qty(self, symbol, qty):
