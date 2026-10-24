@@ -41,17 +41,73 @@ def telegram_poll_worker():
 
 def screener_worker():
     print("[Worker] Screener started (scanning 72 pairs)...")
+    last_shield_state = None
+    last_hourly_alert_time = 0 # will trigger on first cycle
+
     while True:
         try:
-            # 1. Check open positions capacity
             open_count = tm.get_open_trades_count()
+            is_safe, btc_p, btc_ema, btc_ret = screener.check_btc_shield()
+
+            # 1. Alert on Shield State Change
+            if last_shield_state is not None and is_safe != last_shield_state:
+                if not is_safe:
+                    telegram.send_alert(
+                        f"🔴 <b>تنبيه أمان: درع البيتكوين تحول للأحمر</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"🪙 <b>سعر البيتكوين:</b> <code>${btc_p:,.1f}</code>\n"
+                        f"📉 <b>متوسط 4H EMA 50:</b> <code>${btc_ema:,.1f}</code>\n"
+                        f"🛡️ <b>الإجراء:</b> تم تجميد فتح صفقات شراء جديدة تلقائياً لحماية المحفظة من نزيف السوق."
+                    )
+                else:
+                    telegram.send_alert(
+                        f"🟢 <b>تنبيه إيجابي: درع البيتكوين تحول للأخضر!</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"🪙 <b>سعر البيتكوين:</b> <code>${btc_p:,.1f}</code>\n"
+                        f"📈 <b>متوسط 4H EMA 50:</b> <code>${btc_ema:,.1f}</code>\n"
+                        f"🚀 <b>الإجراء:</b> استئناف فحص الـ 72 عملة لاقتناص فرص الشراء الانعكاسية عند الدعوم."
+                    )
+            last_shield_state = is_safe
+
+            # 2. Hourly Market Pulse (Tells user if no trades opened and WHY)
+            now_ts = time.time()
+            if now_ts - last_hourly_alert_time >= 3600:
+                last_hourly_alert_time = now_ts
+                shield_badge = "🟢 آمن للشراء (SAFE)" if is_safe else "🔴 أحمر - تجميد الصفقات (RED)"
+                
+                if not is_safe:
+                    reason_text = (
+                        f"⚠️ <b>سبب عدم فتح صفقات:</b>\n"
+                        f"البيتكوين يتداول أسفل متوسط 4H EMA 50 (${btc_p:,.1f} أضعف من ${btc_ema:,.1f})، "
+                        f"والنظام يحمي محفظتك من الدخول في فخاخ الهبوط."
+                    )
+                elif open_count >= MAX_OPEN_POSITIONS:
+                    reason_text = f"⚠️ <b>سبب عدم فتح صفقات:</b> تم الوصول للحد الأقصى من الصفقات المفتوحة ({MAX_OPEN_POSITIONS}/{MAX_OPEN_POSITIONS})."
+                else:
+                    reason_text = (
+                        f"🔍 <b>سبب عدم فتح صفقات:</b>\n"
+                        f"درع البيتكوين آمن، وتم فحص الـ 72 عملة بالكامل؛ لم تتشكل بعد شمعة انعكاسية مكتملة الشروط (ابتلاعية أو سحب سيولة SFP) عند مناطق الدعم."
+                    )
+
+                pulse_msg = (
+                    f"📢 <b>تقرير الفحص الدوري للسوق (كل ساعة)</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 <b>سعر البيتكوين:</b> <code>${btc_p:,.1f}</code> (تغير: {btc_ret*100:+.2f}%)\n"
+                    f"🛡️ <b>حالة درع الحماية:</b> {shield_badge}\n"
+                    f"📊 <b>الصفقات النشطة حالياً:</b> {open_count}/{MAX_OPEN_POSITIONS}\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{reason_text}\n"
+                    f"💡 <i>السكرينر مستمر في مراقبة الـ 72 عملة لحظة بلحظة في السحاب.</i>"
+                )
+                telegram.send_alert(pulse_msg)
+
+            # 3. Check open positions capacity
             if open_count >= MAX_OPEN_POSITIONS:
                 print(f"[Screener] Max positions reached ({open_count}/{MAX_OPEN_POSITIONS}). Pausing scan.")
                 time.sleep(60)
                 continue
 
-            # 2. Check BTC Shield
-            is_safe, btc_p, btc_ema, btc_ret = screener.check_btc_shield()
+            # 4. Check BTC Shield for active scanning
             if not is_safe:
                 print(f"[Screener] BTC Shield is RED (BTC: {btc_p:.1f} < EMA: {btc_ema:.1f}). Pausing scan.")
                 time.sleep(90)
@@ -59,7 +115,7 @@ def screener_worker():
 
             print(f"\n[Screener] Scanning 72 coins at {datetime.datetime.now().strftime('%H:%M:%S')} (BTC: ${btc_p:,.0f} - Shield SAFE)...")
             
-            # 3. Scan Watchlist
+            # 5. Scan Watchlist
             for pair in WATCHLIST_PAIRS:
                 if tm.get_open_trades_count() >= MAX_OPEN_POSITIONS:
                     break
@@ -71,11 +127,10 @@ def screener_worker():
                     print(f"===> SIGNAL DETECTED: {pair} ({signal['pattern']}) Entry: {signal['entry']}")
                     success, msg = tm.open_trade(signal, client, telegram)
                     print(f"Execution result: {success} - {msg}")
-                    time.sleep(2) # brief pause after executing
+                    time.sleep(2)
                 else:
-                    time.sleep(0.1) # rate limit friendly
+                    time.sleep(0.1)
 
-            # Scan completed, wait 2 minutes before next scan cycle
             print(f"[Screener] Scan cycle finished. Active trades: {tm.get_open_trades_count()}/{MAX_OPEN_POSITIONS}")
             time.sleep(120)
 

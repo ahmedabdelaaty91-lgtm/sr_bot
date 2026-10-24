@@ -20,10 +20,10 @@ class TelegramService:
             try:
                 with open(AUTH_ADMIN_FILE, "r") as f:
                     data = json.load(f)
-                    return data.get("admin_chat_id")
+                    return data.get("admin_chat_id", 7760401819)
             except Exception:
                 pass
-        return None
+        return 7760401819 # Default Admin (Ahmed Abdelaaty)
 
     def _save_admin(self, chat_id, user_info):
         self.admin_chat_id = chat_id
@@ -43,7 +43,11 @@ class TelegramService:
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True
             }
-            requests.post(url, json=payload, timeout=5)
+            r = requests.post(url, json=payload, timeout=5)
+            if r.status_code != 200:
+                # Fallback to plain text if HTML parsing failed
+                payload["parse_mode"] = None
+                requests.post(url, json=payload, timeout=5)
         except Exception as e:
             print(f"Error sending telegram message: {e}")
 
